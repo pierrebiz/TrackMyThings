@@ -1,0 +1,11 @@
+# Généré par XcodeGen
+*.xcodeproj/
+App/Info.plist
+Widget/Info.plist
+App/*.entitlements
+Widget/*.entitlements
+build/
+DerivedData/
+*.ipa
+.DS_Store
+xcuserdata/
