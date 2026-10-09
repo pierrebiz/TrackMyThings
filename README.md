@@ -48,40 +48,62 @@ Tout fonctionne en local, sans serveur ni compte.
 
 ## Installation sans l'App Store
 
-Il faut un **Mac avec Xcode 16 ou plus** et un **compte Apple**.
+### 1. Récupérer l'IPA (le fichier d'installation)
 
-1. Installez Xcode depuis le Mac App Store, puis XcodeGen :
+À chaque modification du code, GitHub compile l'app sur un Mac.
+
+1. Sur GitHub, ouvrez l'onglet **Actions**, puis le dernier run **Build** marqué ✓.
+2. En bas de la page, téléchargez l'artefact **TrackMyThings-ipa**.
+3. Dézippez-le pour obtenir `TrackMyThings.ipa`.
+
+L'IPA est pré-signée avec l'App Group, qui permet le partage des données entre l'app et le widget. L'outil d'installation re-signe l'app avec votre Apple ID.
+
+### 2. L'installer avec un Apple ID gratuit, sans Mac
+
+Deux outils au choix.
+
+**Sideloadly (PC Windows, le plus simple)**
+
+1. Installez [Sideloadly](https://sideloadly.io) et iTunes, la version téléchargée depuis le site d'Apple, pas celle du Microsoft Store.
+2. Branchez l'iPhone en USB, puis glissez `TrackMyThings.ipa` dans Sideloadly.
+3. Entrez votre Apple ID et cliquez sur **Start**.
+   - Dans les options avancées, ne cochez **pas** « Remove app extensions » : cela supprimerait le widget.
+4. **Tous les 7 jours**, recommencez l'étape 3, sinon l'app ne s'ouvre plus. Vos données sont conservées.
+
+**SideStore (renouvellement depuis l'iPhone, sans ordinateur après l'installation)**
+
+1. Suivez le guide d'installation de [SideStore](https://docs.sidestore.io). Il faut un ordinateur (Windows, Linux ou Mac) une seule fois, pour créer le fichier d'appairage.
+2. Copiez `TrackMyThings.ipa` dans l'app Fichiers de l'iPhone. Dans SideStore, ouvrez **My Apps**, touchez **+** et choisissez le fichier.
+3. Les 7 jours se renouvellent depuis SideStore, sur l'iPhone, sans ordinateur.
+
+AltStore Classic (avec AltServer sur PC) fonctionne aussi.
+
+### 3. Sur l'iPhone
+
+1. Faites confiance au certificat : Réglages › Général › VPN et gestion de l'appareil › votre Apple ID › Faire confiance.
+2. Activez le Mode développeur si iOS le demande : Réglages › Confidentialité et sécurité.
+3. Lancez l'app une fois et acceptez les notifications.
+4. Ouvrez ⚙️ Réglages › **Partage app ↔ widget**. La ligne doit indiquer **OK**.
+5. Ajoutez le widget : appui long sur l'écran d'accueil › **Modifier** › **Ajouter un widget** › TrackMyThings.
+
+### Limites d'un Apple ID gratuit
+
+- Il faut renouveler l'app **tous les 7 jours**.
+- 3 apps installées ainsi au maximum, SideStore compris.
+- 10 identifiants d'app par semaine. TrackMyThings en utilise 2 : l'app et le widget.
+
+Les outils de sideload renomment l'App Group, par exemple en `group.biz.besnard.trackmythings.ABCDE12345`. L'app retrouve automatiquement le nom réel, via `ALTAppGroups` ou via le profil de provisioning embarqué.
+
+Si **Partage app ↔ widget** indique « Indisponible », l'app fonctionne, mais le widget ne verra pas les enregistrements.
+
+### Avec un Mac (alternative)
+
+1. Dans `project.yml`, renseignez `DEVELOPMENT_TEAM`.
+2. Lancez :
    ```sh
-   brew install xcodegen
+   brew install xcodegen && xcodegen && open TrackMyThings.xcodeproj
    ```
-2. Clonez ce dépôt, puis éditez `project.yml` :
-   - `DEVELOPMENT_TEAM` : votre Team ID (Xcode › Settings › Accounts, ajoutez votre Apple ID ; l'identifiant est affiché sur l'équipe) ;
-   - si Xcode refuse les identifiants (« not available »), changez `BASE_BUNDLE_ID` et `APP_GROUP_ID` (ex. `fr.pierre.trackmythings` et `group.fr.pierre.trackmythings`).
-3. Générez le projet et ouvrez-le :
-   ```sh
-   xcodegen
-   open TrackMyThings.xcodeproj
-   ```
-4. Branchez l'iPhone, sélectionnez-le comme destination, puis faites **▶︎ Run**.
-5. Sur l'iPhone :
-   - activez le **Mode développeur** (Réglages › Confidentialité et sécurité), puis faites confiance au profil (Réglages › Général › VPN et gestion de l'appareil) ;
-   - lancez l'app une fois et acceptez les notifications ;
-   - ajoutez le widget : appui long sur l'écran d'accueil › **Modifier** › **Ajouter un widget** › TrackMyThings.
-
-### Compte gratuit ou payant ?
-
-| | Apple ID gratuit | Apple Developer Program (99 €/an) |
-|---|---|---|
-| Durée de validité de l'app | **7 jours**, puis il faut refaire ▶︎ Run depuis le Mac (les données sont conservées) | 1 an |
-| App Group (partage des données app ↔ widget) | Ça marche souvent, mais Apple ne le garantit pas | Oui |
-
-Si l'App Group n'est pas disponible, l'app fonctionne quand même, mais le widget ne voit pas ses données. Un avertissement s'affiche alors dans Réglages.
-
-### Sans Mac (expérimental)
-
-GitHub Actions compile l'app à chaque push. L'IPA non signée, signée en *ad-hoc* avec l'App Group, est disponible dans l'artefact `TrackMyThings-ipa` du workflow **Build**.
-On peut l'installer avec [Sideloadly](https://sideloadly.io) ou AltStore, avec un Apple ID.
-Ces outils peuvent renommer l'App Group : dans ce cas, le widget ne verra pas les données. Le chemin Xcode est plus fiable.
+3. Faites ▶︎ Run sur l'iPhone branché.
 
 ## Structure
 

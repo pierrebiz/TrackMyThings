@@ -55,13 +55,19 @@ struct SettingsView: View {
                 }
             }
 
-            if !Store.isSharedContainerAvailable {
-                Section("Widget") {
-                    Label("App Group « \(Store.appGroupID) » indisponible : le widget ne verra pas les données de l'app. Vérifiez la signature (voir README).",
+            Section("Partage app ↔ widget") {
+                if Store.isSharedContainerAvailable {
+                    Label("OK", systemImage: "checkmark.circle")
+                        .foregroundStyle(.green)
+                } else {
+                    Label("Indisponible : le widget ne verra pas les données de l'app. Voir README.",
                           systemImage: "exclamationmark.triangle")
-                        .font(.footnote)
                         .foregroundStyle(.orange)
                 }
+                Text(Store.appGroupID)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
             }
         }
         .navigationTitle("Réglages")

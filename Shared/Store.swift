@@ -2,13 +2,56 @@ import Foundation
 
 /// Persistance JSON partagée entre l'app et le widget via un App Group.
 enum Store {
-    /// Lu depuis l'Info.plist (clé `AppGroupID`, alimentée par le réglage de build `APP_GROUP_ID`).
-    static let appGroupID: String =
+    /// Groupe configuré au build (clé `AppGroupID` de l'Info.plist, réglage `APP_GROUP_ID`).
+    static let configuredAppGroupID: String =
         (Bundle.main.object(forInfoDictionaryKey: "AppGroupID") as? String) ?? "group.biz.besnard.trackmythings"
+
+    /// Groupe réellement utilisable. Les outils de sideload avec un Apple ID gratuit
+    /// (AltStore, SideStore, Sideloadly…) renomment le groupe, typiquement
+    /// `group.xxx` → `group.xxx.<TEAMID>` : on le retrouve dans l'Info.plist (`ALTAppGroups`)
+    /// ou dans le profil de provisioning embarqué.
+    static let appGroupID: String = resolveAppGroupID()
 
     /// `true` si le conteneur partagé est accessible (sinon le widget ne voit pas les données de l'app).
     static var isSharedContainerAvailable: Bool {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID) != nil
+    }
+
+    private static func resolveAppGroupID() -> String {
+        let configured = configuredAppGroupID
+        let fm = FileManager.default
+        func usable(_ id: String) -> Bool {
+            fm.containerURL(forSecurityApplicationGroupIdentifier: id) != nil
+        }
+        if usable(configured) { return configured }
+
+        // Le groupe renommé commence par le groupe configuré : on le préfère, puis n'importe quel groupe utilisable.
+        let candidates = groupsFromInfoPlist() + groupsFromProvisioningProfile()
+        let ranked = candidates.filter { $0.hasPrefix(configured) } + candidates.filter { !$0.hasPrefix(configured) }
+        return ranked.first(where: usable) ?? configured
+    }
+
+    /// Clé ajoutée par AltStore / SideStore dans l'app et dans chaque extension.
+    private static func groupsFromInfoPlist() -> [String] {
+        switch Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") {
+        case let groups as [String]: return groups
+        case let group as String: return [group]
+        default: return []
+        }
+    }
+
+    /// Entitlements du profil `embedded.mobileprovision` (présent quel que soit l'outil de signature).
+    private static func groupsFromProvisioningProfile() -> [String] {
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let raw = try? Data(contentsOf: url),
+              let start = raw.range(of: Data("<?xml".utf8)),
+              let end = raw.range(of: Data("</plist>".utf8), in: start.lowerBound..<raw.endIndex),
+              let plist = try? PropertyListSerialization.propertyList(
+                  from: raw.subdata(in: start.lowerBound..<end.upperBound), format: nil) as? [String: Any],
+              let entitlements = plist["Entitlements"] as? [String: Any],
+              let groups = entitlements["com.apple.security.application-groups"] as? [String]
+        else { return [] }
+        return groups
     }
 
     static var fileURL: URL {
