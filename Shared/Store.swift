@@ -40,18 +40,79 @@ enum Store {
         }
     }
 
-    /// Entitlements du profil `embedded.mobileprovision` (présent quel que soit l'outil de signature).
+    /// Groupes du profil `embedded.mobileprovision` (présent quel que soit l'outil de signature).
     private static func groupsFromProvisioningProfile() -> [String] {
-        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
-              let raw = try? Data(contentsOf: url),
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision") else { return [] }
+        return (profile(at: url)?["Entitlements"] as? [String: Any])?["com.apple.security.application-groups"] as? [String] ?? []
+    }
+
+    /// Contenu (plist) d'un profil de provisioning, extrait de son enveloppe signée.
+    private static func profile(at url: URL) -> [String: Any]? {
+        guard let raw = try? Data(contentsOf: url),
               let start = raw.range(of: Data("<?xml".utf8)),
-              let end = raw.range(of: Data("</plist>".utf8), in: start.lowerBound..<raw.endIndex),
-              let plist = try? PropertyListSerialization.propertyList(
-                  from: raw.subdata(in: start.lowerBound..<end.upperBound), format: nil) as? [String: Any],
-              let entitlements = plist["Entitlements"] as? [String: Any],
-              let groups = entitlements["com.apple.security.application-groups"] as? [String]
-        else { return [] }
+              let end = raw.range(of: Data("</plist>".utf8), in: start.lowerBound..<raw.endIndex)
+        else { return nil }
+        return try? PropertyListSerialization.propertyList(
+            from: raw.subdata(in: start.lowerBound..<end.upperBound), format: nil) as? [String: Any]
+    }
+
+    /// App Groups présents dans la signature d'un exécutable (entitlements embarqués en XML).
+    private static func signedGroups(executable url: URL) -> [String]? {
+        guard let raw = try? Data(contentsOf: url) else { return nil }
+        let key = Data("<key>com.apple.security.application-groups</key>".utf8)
+        var groups: [String] = []
+        var cursor = raw.startIndex
+        while let k = raw.range(of: key, in: cursor..<raw.endIndex) {
+            let tail = raw.subdata(in: k.upperBound..<min(k.upperBound + 2048, raw.endIndex))
+            let text = String(decoding: tail, as: UTF8.self)
+            let block = text.components(separatedBy: "</array>").first ?? ""
+            for part in block.components(separatedBy: "<string>").dropFirst() {
+                if let value = part.components(separatedBy: "</string>").first, !groups.contains(value) {
+                    groups.append(value)
+                }
+            }
+            cursor = k.upperBound
+        }
         return groups
+    }
+
+    /// Rapport texte pour comprendre pourquoi le partage app ↔ widget ne marche pas.
+    static func diagnostics() -> String {
+        func list(_ values: [String]?) -> String {
+            guard let values else { return "illisible" }
+            return values.isEmpty ? "aucun" : values.joined(separator: ", ")
+        }
+        func describe(bundle: Bundle, title: String) -> [String] {
+            var lines = ["— \(title) —", "Bundle ID : \(bundle.bundleIdentifier ?? "?")"]
+            if let alt = bundle.object(forInfoDictionaryKey: "ALTAppGroups") {
+                lines.append("ALTAppGroups : \(alt)")
+            }
+            if let url = bundle.url(forResource: "embedded", withExtension: "mobileprovision"),
+               let p = profile(at: url) {
+                let ent = p["Entitlements"] as? [String: Any] ?? [:]
+                lines.append("Profil : \(p["Name"] as? String ?? "?")")
+                lines.append("Équipe : \((p["TeamIdentifier"] as? [String])?.joined(separator: ",") ?? "?")")
+                lines.append("App ID profil : \(ent["application-identifier"] as? String ?? "?")")
+                lines.append("Groupes profil : \(list(ent["com.apple.security.application-groups"] as? [String]))")
+            } else {
+                lines.append("Profil : absent")
+            }
+            lines.append("Groupes signés : \(list(bundle.executableURL.flatMap { signedGroups(executable: $0) }))")
+            return lines
+        }
+
+        var lines = [
+            "Groupe configuré : \(configuredAppGroupID)",
+            "Groupe utilisé : \(appGroupID) → \(isSharedContainerAvailable ? "OK" : "indisponible")",
+        ]
+        lines += describe(bundle: .main, title: "App")
+        let widgetURL = Bundle.main.builtInPlugInsURL?.appendingPathComponent("TrackWidget.appex")
+        if let widgetURL, let widget = Bundle(url: widgetURL) {
+            lines += describe(bundle: widget, title: "Widget")
+        } else {
+            lines.append("— Widget — absent de l'app !")
+        }
+        return lines.joined(separator: "\n")
     }
 
     static var fileURL: URL {

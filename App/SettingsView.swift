@@ -64,10 +64,15 @@ struct SettingsView: View {
                           systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 }
-                Text(Store.appGroupID)
-                    .font(.caption.monospaced())
+                Text(Store.diagnostics())
+                    .font(.caption2.monospaced())
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
+                Button {
+                    UIPasteboard.general.string = Store.diagnostics()
+                } label: {
+                    Label("Copier le diagnostic", systemImage: "doc.on.doc")
+                }
             }
         }
         .navigationTitle("Réglages")
