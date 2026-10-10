@@ -79,15 +79,6 @@ struct AppData: Codable {
     var askConfirmation: Bool = true
     var closeAppAfterLog: Bool = true
 
-    // État transitoire du widget (sélection en attente de confirmation, bandeau « enregistré »)
-    var pendingTypeID: UUID?
-    var pendingSince: Date?
-    var lastConfirmedTypeID: UUID?
-    var lastConfirmedAt: Date?
-
-    static let pendingTimeout: TimeInterval = 30
-    static let bannerDuration: TimeInterval = 4
-
     static var initial: AppData {
         AppData(
             types: [
@@ -109,10 +100,6 @@ struct AppData: Codable {
         entries = try c.decodeIfPresent([LogEntry].self, forKey: .entries) ?? []
         askConfirmation = try c.decodeIfPresent(Bool.self, forKey: .askConfirmation) ?? true
         closeAppAfterLog = try c.decodeIfPresent(Bool.self, forKey: .closeAppAfterLog) ?? true
-        pendingTypeID = try c.decodeIfPresent(UUID.self, forKey: .pendingTypeID)
-        pendingSince = try c.decodeIfPresent(Date.self, forKey: .pendingSince)
-        lastConfirmedTypeID = try c.decodeIfPresent(UUID.self, forKey: .lastConfirmedTypeID)
-        lastConfirmedAt = try c.decodeIfPresent(Date.self, forKey: .lastConfirmedAt)
     }
 
     func type(_ id: UUID?) -> EventType? {
@@ -132,18 +119,6 @@ struct AppData: Codable {
     func isOverdue(_ type: EventType, at now: Date = Date()) -> Bool {
         guard let due = dueDate(for: type) else { return false }
         return due < now
-    }
-
-    /// Type en attente de confirmation dans le widget, s'il n'a pas expiré.
-    func pendingType(at now: Date) -> EventType? {
-        guard let since = pendingSince, now < since.addingTimeInterval(Self.pendingTimeout) else { return nil }
-        return type(pendingTypeID)
-    }
-
-    /// Type qui vient d'être enregistré (pour afficher un bandeau de confirmation).
-    func justConfirmedType(at now: Date) -> EventType? {
-        guard let at = lastConfirmedAt, now < at.addingTimeInterval(Self.bannerDuration) else { return nil }
-        return type(lastConfirmedTypeID)
     }
 }
 

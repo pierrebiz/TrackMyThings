@@ -29,7 +29,7 @@ struct SettingsView: View {
             } header: {
                 Text("Types d'événements")
             } footer: {
-                Text("L'ordre ici est l'ordre du widget. Les entrées du journal sont conservées si vous supprimez un type.")
+                Text("L'ordre ici est l'ordre de l'écran principal. Les entrées du journal sont conservées si vous supprimez un type.")
             }
 
             Section("Comportement") {
@@ -52,26 +52,6 @@ struct SettingsView: View {
                     } label: {
                         Label("Activer les notifications dans Réglages", systemImage: "bell.slash")
                     }
-                }
-            }
-
-            Section("Partage app ↔ widget") {
-                if Store.isSharedContainerAvailable {
-                    Label("OK", systemImage: "checkmark.circle")
-                        .foregroundStyle(.green)
-                } else {
-                    Label("Indisponible : le widget ne verra pas les données de l'app. Voir README.",
-                          systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                }
-                Text(Store.diagnostics())
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                Button {
-                    UIPasteboard.general.string = Store.diagnostics()
-                } label: {
-                    Label("Copier le diagnostic", systemImage: "doc.on.doc")
                 }
             }
         }

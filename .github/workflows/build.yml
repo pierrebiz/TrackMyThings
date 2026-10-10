@@ -30,23 +30,10 @@ jobs:
             build | tee build.log | grep -E "error:|warning: .*(deprecated|Sendable)|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build.log
 
-      - name: Package IPA (ad-hoc signed with App Group entitlements)
+      - name: Package IPA
         run: |
-          GROUP=$(grep -E '^\s+APP_GROUP_ID:' project.yml | head -1 | awk '{print $2}')
-          cat > ent.plist <<PLIST
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict>
-            <key>com.apple.security.application-groups</key><array><string>${GROUP}</string></array>
-          </dict></plist>
-          PLIST
-          APP=build/Build/Products/Release-iphoneos/TrackMyThings.app
-          codesign -f -s - --entitlements ent.plist "$APP/PlugIns/TrackWidget.appex"
-          codesign -f -s - --entitlements ent.plist "$APP"
-          echo "== Entitlements app ==";    codesign -d --entitlements - "$APP"
-          echo "== Entitlements widget =="; codesign -d --entitlements - "$APP/PlugIns/TrackWidget.appex"
           mkdir Payload
-          cp -R "$APP" Payload/
+          cp -R build/Build/Products/Release-iphoneos/TrackMyThings.app Payload/
           zip -qry TrackMyThings.ipa Payload
 
       - uses: actions/upload-artifact@v4

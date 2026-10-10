@@ -1,6 +1,5 @@
 import SwiftUI
 import UserNotifications
-import WidgetKit
 
 @main
 struct TrackMyThingsApp: App {
@@ -47,7 +46,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
               let raw = response.notification.request.content.userInfo["typeID"] as? String,
               let id = UUID(uuidString: raw) else { return }
         await Tracker.log(typeID: id)
-        WidgetCenter.shared.reloadAllTimelines()
     }
 }
 
@@ -72,9 +70,6 @@ struct RootView: View {
                     case .newType: EventTypeEditor(typeID: nil)
                     }
                 }
-        }
-        .onOpenURL { url in
-            if url.host == "log" { path = [.log] }
         }
     }
 }

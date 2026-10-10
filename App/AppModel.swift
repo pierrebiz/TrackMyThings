@@ -1,6 +1,5 @@
 import SwiftUI
 import UserNotifications
-import WidgetKit
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -13,14 +12,12 @@ final class AppModel: ObservableObject {
 
     func mutate(_ body: (inout AppData) -> Void) {
         data = Store.update(body)
-        WidgetCenter.shared.reloadAllTimelines()
         rescheduleReminders()
     }
 
     func log(typeID: UUID, at date: Date = Date()) async {
         await Tracker.log(typeID: typeID, at: date)
         reload()
-        WidgetCenter.shared.reloadAllTimelines()
     }
 
     func deleteEntries(_ ids: Set<UUID>) {
