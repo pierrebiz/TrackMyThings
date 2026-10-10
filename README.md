@@ -8,7 +8,7 @@ App iPhone minimaliste pour noter en deux touches qu'une tâche récurrente a é
 
 ### Utilisation
 
-1. Touchez l'icône de l'app, ou l'un de vos raccourcis vers elle sur l'écran d'accueil.
+1. Touchez l'icône de l'app.
 2. Touchez l'événement, par exemple 💊 Statine, puis confirmez.
 3. L'événement est enregistré à la date et à l'heure actuelles, puis l'app se ferme toute seule.
 
@@ -23,7 +23,8 @@ Chaque bouton indique depuis combien de temps l'événement a été fait. Il pas
   - ajout manuel d'une entrée oubliée (bouton +) et suppression par glissement ;
   - export CSV (bouton partager).
 - **Réglages** (⚙️) :
-  - ajouter, modifier, réordonner ou supprimer des types d'événements (nom, emoji, fréquence en heures, jours ou semaines) ;
+  - ajouter, modifier ou supprimer des types d'événements (nom, emoji, fréquence en heures, jours ou semaines) ;
+  - changer leur ordre : bouton **Réordonner**, puis glisser les poignées ≡ ;
   - activer ou désactiver la confirmation et la fermeture automatique.
 
 ### Alertes
@@ -33,6 +34,32 @@ Elle est relancée à +2 h, +6 h, +1 j, +2 j et +3 j. Le bouton **« ✓ Fait ma
 Tout fonctionne en local, sans serveur ni compte.
 
 > Pour une prise quotidienne dont l'heure varie un peu, une fréquence de 26 heures évite les alertes inutiles.
+
+### Sauvegarde sur GitHub
+
+Après chaque modification (enregistrement, suppression, réglage), l'app envoie tout son contenu, c'est-à-dire les types d'événements, le journal et les réglages, dans le fichier `trackmythings.json` d'un dépôt GitHub privé. Si le téléphone est hors ligne, elle le fait au lancement suivant.
+
+GitHub garde chaque version, donc on peut revenir à n'importe quel jour.
+
+Avant chaque envoi, l'app fusionne la sauvegarde avec ce qu'elle a. Après une réinstallation, il suffit de renseigner à nouveau le jeton : l'historique revient tout seul, sans doublons. Les entrées supprimées ne réapparaissent pas.
+
+**Créer le jeton d'accès** (sur github.com, depuis un navigateur) :
+
+1. Cliquez sur votre photo de profil › **Settings** › **Developer settings** (tout en bas à gauche) › **Personal access tokens** › **Fine-grained tokens** › **Generate new token**.
+2. Remplissez :
+   - **Token name** : `TrackMyThings iPhone` ;
+   - **Expiration** : la durée la plus longue proposée. Notez la date : il faudra recréer un jeton à l'expiration ;
+   - **Repository access** : **Only select repositories**, puis `trackmythings-data` ;
+   - **Permissions** › **Repository permissions** › **Contents** : **Read and write**. « Metadata : Read-only » s'ajoute tout seul.
+3. Cliquez sur **Generate token**, puis copiez le jeton, qui commence par `github_pat_`. Il n'est affiché qu'une seule fois.
+
+**Dans l'app**, ouvrez ⚙️ Réglages › **Sauvegarde GitHub** :
+
+1. Vérifiez le dépôt : `pierrebiz/trackmythings-data`.
+2. Collez le jeton.
+3. Touchez **Enregistrer et synchroniser**. La ligne verte « Dernière sauvegarde » confirme que ça fonctionne.
+
+Le jeton est rangé dans le trousseau sécurisé de l'iPhone. Il ne donne accès qu'au dépôt de sauvegarde.
 
 ## Installation sans l'App Store
 

@@ -79,6 +79,10 @@ struct AppData: Codable {
     var askConfirmation: Bool = true
     var closeAppAfterLog: Bool = true
 
+    // Éléments supprimés, conservés pour que la fusion avec la sauvegarde ne les fasse pas réapparaître.
+    var deletedEntryIDs: [UUID] = []
+    var deletedTypeIDs: [UUID] = []
+
     static var initial: AppData {
         AppData(
             types: [
@@ -100,6 +104,8 @@ struct AppData: Codable {
         entries = try c.decodeIfPresent([LogEntry].self, forKey: .entries) ?? []
         askConfirmation = try c.decodeIfPresent(Bool.self, forKey: .askConfirmation) ?? true
         closeAppAfterLog = try c.decodeIfPresent(Bool.self, forKey: .closeAppAfterLog) ?? true
+        deletedEntryIDs = try c.decodeIfPresent([UUID].self, forKey: .deletedEntryIDs) ?? []
+        deletedTypeIDs = try c.decodeIfPresent([UUID].self, forKey: .deletedTypeIDs) ?? []
     }
 
     func type(_ id: UUID?) -> EventType? {
@@ -119,6 +125,41 @@ struct AppData: Codable {
     func isOverdue(_ type: EventType, at now: Date = Date()) -> Bool {
         guard let due = dueDate(for: type) else { return false }
         return due < now
+    }
+}
+
+extension AppData {
+    /// Fusionne la sauvegarde distante dans les données locales : union des entrées et des types,
+    /// sans réintroduire ce qui a été supprimé d'un côté ou de l'autre. Le local l'emporte
+    /// pour les réglages et les types modifiés.
+    static func merge(_ local: AppData, with remote: AppData?) -> AppData {
+        guard let remote else { return local }
+        var result = local
+
+        let deletedEntries = Set(local.deletedEntryIDs).union(remote.deletedEntryIDs)
+        let deletedTypes = Set(local.deletedTypeIDs).union(remote.deletedTypeIDs)
+
+        var entries: [UUID: LogEntry] = [:]
+        for e in remote.entries + local.entries { entries[e.id] = e }
+        result.entries = entries.values
+            .filter { !deletedEntries.contains($0.id) }
+            .sorted { $0.date < $1.date }
+
+        let types: [EventType]
+        if local.entries.isEmpty {
+            // Téléphone neuf ou réinstallé : on reprend les types de la sauvegarde
+            // (les types par défaut ont des identifiants différents et feraient doublon).
+            let remoteNames = Set(remote.types.map { $0.name.lowercased() })
+            types = remote.types + local.types.filter { !remoteNames.contains($0.name.lowercased()) }
+        } else {
+            let localIDs = Set(local.types.map(\.id))
+            types = local.types + remote.types.filter { !localIDs.contains($0.id) }
+        }
+        result.types = types.filter { !deletedTypes.contains($0.id) }
+
+        result.deletedEntryIDs = deletedEntries.sorted { $0.uuidString < $1.uuidString }
+        result.deletedTypeIDs = deletedTypes.sorted { $0.uuidString < $1.uuidString }
+        return result
     }
 }
 

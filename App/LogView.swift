@@ -28,7 +28,7 @@ struct LogView: View {
                     }
                 }
                 ForEach(model.data.types.filter { filter == nil || $0.id == filter }) { type in
-                    StatusRow(type: type, data: model.data)
+                    StatusRow(type: type, data: model.data, now: model.now)
                 }
             }
 
@@ -70,20 +70,21 @@ struct LogView: View {
 private struct StatusRow: View {
     let type: EventType
     let data: AppData
+    let now: Date
 
     var body: some View {
         let count30 = data.entries.filter {
-            $0.typeID == type.id && $0.date > Date().addingTimeInterval(-30 * 86_400)
+            $0.typeID == type.id && $0.date > now.addingTimeInterval(-30 * 86_400)
         }.count
         VStack(alignment: .leading, spacing: 2) {
             HStack {
                 Text("\(type.emoji) \(type.name)").font(.headline)
                 Spacer()
-                if data.isOverdue(type) {
+                if data.isOverdue(type, at: now) {
                     Text("EN RETARD").font(.caption.bold()).foregroundStyle(.red)
                 }
             }
-            Text("Dernière fois : \(Format.ago(data.lastDate(for: type.id))) · \(count30) fois sur 30 jours")
+            Text("Dernière fois : \(Format.ago(data.lastDate(for: type.id), now: now)) · \(count30) fois sur 30 jours")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if type.reminderEnabled {

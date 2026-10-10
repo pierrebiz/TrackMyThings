@@ -19,8 +19,16 @@ enum Store {
     }
 
     static func save(_ data: AppData) {
-        guard let raw = try? encoder.encode(data) else { return }
+        guard let raw = encode(data) else { return }
         try? raw.write(to: fileURL, options: .atomic)
+    }
+
+    static func encode(_ data: AppData) -> Data? {
+        try? encoder.encode(data)
+    }
+
+    static func decode(_ raw: Data) -> AppData? {
+        try? decoder.decode(AppData.self, from: raw)
     }
 
     /// Lit, modifie et réécrit les données. Retourne la version sauvegardée.

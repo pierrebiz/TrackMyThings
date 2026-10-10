@@ -20,6 +20,8 @@ struct TrackMyThingsApp: App {
             if phase == .active {
                 model.reload()
                 model.rescheduleReminders()
+                // Rattrape une sauvegarde manquée (téléphone hors ligne) et récupère l'historique après une réinstallation.
+                Task { await model.backup() }
             }
         }
     }
@@ -46,6 +48,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
               let raw = response.notification.request.content.userInfo["typeID"] as? String,
               let id = UUID(uuidString: raw) else { return }
         await Tracker.log(typeID: id)
+        await GitHubBackup.shared.sync()
     }
 }
 
@@ -57,6 +60,8 @@ enum Route: Hashable {
 }
 
 struct RootView: View {
+    @EnvironmentObject private var model: AppModel
+    private let clock = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     @State private var path: [Route] = []
 
     var body: some View {
@@ -70,6 +75,9 @@ struct RootView: View {
                     case .newType: EventTypeEditor(typeID: nil)
                     }
                 }
+        }
+        .onReceive(clock) { _ in
+            model.tick()
         }
     }
 }

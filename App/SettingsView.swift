@@ -2,34 +2,37 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
+    @State private var editMode: EditMode = .inactive
 
     var body: some View {
-        Form {
+        List {
+            // Section réservée aux types : le glisser-déposer ne fonctionne bien
+            // que si la section ne contient que les lignes déplaçables.
             Section {
                 ForEach(model.data.types) { type in
-                    NavigationLink(value: Route.editType(type.id)) {
-                        VStack(alignment: .leading) {
-                            Text("\(type.emoji) \(type.name)")
-                            Text(type.reminderEnabled ? "Alerte si pas fait \(type.frequencyLabel)" : "Pas d'alerte")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                    if editMode.isEditing {
+                        typeRow(type)
+                    } else {
+                        NavigationLink(value: Route.editType(type.id)) { typeRow(type) }
                     }
                 }
                 .onMove { from, to in
                     model.mutate { $0.types.move(fromOffsets: from, toOffset: to) }
                 }
                 .onDelete { offsets in
-                    let ids = Set(offsets.map { model.data.types[$0].id })
-                    model.mutate { $0.types.removeAll { ids.contains($0.id) } }
+                    model.deleteTypes(Set(offsets.map { model.data.types[$0].id }))
                 }
-                NavigationLink(value: Route.newType) {
-                    Label("Ajouter un type d'événement", systemImage: "plus")
-                }
+                .moveDisabled(!editMode.isEditing)
             } header: {
                 Text("Types d'événements")
             } footer: {
-                Text("L'ordre ici est l'ordre de l'écran principal. Les entrées du journal sont conservées si vous supprimez un type.")
+                Text("Pour changer l'ordre, touchez « Réordonner » puis faites glisser les poignées ≡. Les entrées du journal sont conservées si vous supprimez un type.")
+            }
+
+            Section {
+                NavigationLink(value: Route.newType) {
+                    Label("Ajouter un type d'événement", systemImage: "plus")
+                }
             }
 
             Section("Comportement") {
@@ -40,6 +43,8 @@ struct SettingsView: View {
                     get: { model.data.closeAppAfterLog },
                     set: { value in model.mutate { $0.closeAppAfterLog = value } }))
             }
+
+            BackupSection()
 
             Section("Notifications") {
                 if model.notificationsAuthorized {
@@ -55,9 +60,77 @@ struct SettingsView: View {
                 }
             }
         }
+        .listStyle(.insetGrouped)
+        .environment(\.editMode, $editMode)
         .navigationTitle("Réglages")
-        .toolbar { EditButton() }
+        .toolbar {
+            Button(editMode.isEditing ? "OK" : "Réordonner") {
+                withAnimation { editMode = editMode.isEditing ? .inactive : .active }
+            }
+        }
         .task { await model.refreshNotificationStatus() }
+    }
+
+    private func typeRow(_ type: EventType) -> some View {
+        VStack(alignment: .leading) {
+            Text("\(type.emoji) \(type.name)")
+            Text(type.reminderEnabled ? "Alerte si pas fait \(type.frequencyLabel)" : "Pas d'alerte")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// Réglage de la sauvegarde GitHub (voir README pour créer le jeton).
+private struct BackupSection: View {
+    @EnvironmentObject private var model: AppModel
+    @State private var repo = GitHubBackup.repo
+    @State private var token = ""
+
+    var body: some View {
+        Section {
+            TextField("propriétaire/dépôt", text: $repo)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            SecureField(model.backupConfigured ? "Jeton enregistré (coller pour remplacer)" : "Jeton d'accès GitHub",
+                        text: $token)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+
+            Button {
+                let newToken = token
+                token = ""
+                Task { await model.configureBackup(repo: repo, token: newToken) }
+            } label: {
+                HStack {
+                    Label(model.backupConfigured ? "Synchroniser maintenant" : "Enregistrer et synchroniser",
+                          systemImage: "arrow.triangle.2.circlepath")
+                    if model.isSyncing {
+                        Spacer()
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(model.isSyncing || (!model.backupConfigured && token.isEmpty))
+
+            if let error = model.backupLastError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            } else if let date = model.backupLastSuccess {
+                Label("Dernière sauvegarde : \(Format.ago(date, now: model.now))", systemImage: "checkmark.icloud")
+                    .font(.footnote)
+                    .foregroundStyle(.green)
+            }
+
+            if model.backupConfigured {
+                Button("Supprimer le jeton", role: .destructive) { model.removeBackupToken() }
+            }
+        } header: {
+            Text("Sauvegarde GitHub")
+        } footer: {
+            Text("Après chaque modification, le journal est envoyé dans \(GitHubBackup.filePath) du dépôt. Les entrées de la sauvegarde absentes du téléphone (par exemple après une réinstallation) sont récupérées automatiquement.")
+        }
     }
 }
 

@@ -19,7 +19,7 @@ struct QuickLogView: View {
                             record(type)
                         }
                     } label: {
-                        EventButtonLabel(type: type, data: model.data)
+                        EventButtonLabel(type: type, data: model.data, now: model.now)
                     }
                     .buttonStyle(.plain)
                 }
@@ -86,8 +86,12 @@ struct QuickLogView: View {
             try? await Task.sleep(nanoseconds: 800_000_000)
             withAnimation { justLogged = nil }
             if model.data.closeAppAfterLog {
-                // Renvoie à l'écran d'accueil (équivalent d'un appui sur le bouton Home).
+                // Retour à l'écran d'accueil, puis arrêt réel de l'app : au prochain lancement,
+                // elle repart de zéro avec le journal à jour. (Interdit sur l'App Store,
+                // sans conséquence pour une app installée soi-même.)
                 UIControl().sendAction(#selector(URLSessionTask.suspend), to: UIApplication.shared, for: nil)
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                exit(0)
             }
         }
     }
@@ -96,13 +100,14 @@ struct QuickLogView: View {
 private struct EventButtonLabel: View {
     let type: EventType
     let data: AppData
+    let now: Date
 
     var body: some View {
-        let overdue = data.isOverdue(type)
+        let overdue = data.isOverdue(type, at: now)
         VStack(spacing: 6) {
             Text(type.emoji).font(.system(size: 40))
             Text(type.name).font(.headline).lineLimit(1).minimumScaleFactor(0.7)
-            Text(Format.ago(data.lastDate(for: type.id)))
+            Text(Format.ago(data.lastDate(for: type.id), now: now))
                 .font(.caption)
                 .foregroundStyle(overdue ? .red : .secondary)
         }
