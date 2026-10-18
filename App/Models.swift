@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 enum IntervalUnit: String, Codable, CaseIterable, Identifiable {
@@ -20,6 +21,14 @@ enum IntervalUnit: String, Codable, CaseIterable, Identifiable {
         case .weeks: return value > 1 ? "semaines" : "semaine"
         }
     }
+
+    var calendarComponent: Calendar.Component {
+        switch self {
+        case .hours: return .hour
+        case .days: return .day
+        case .weeks: return .weekOfYear
+        }
+    }
 }
 
 /// Un type d'événement configurable (ex. « Statine », « Charge voiture »).
@@ -31,8 +40,31 @@ struct EventType: Identifiable, Codable, Hashable {
     var reminderEnabled: Bool = true
     var intervalValue: Int = 1
     var intervalUnit: IntervalUnit = .days
+    /// Validation automatique (ex. « Sortir les poubelles ») : une entrée est ajoutée au journal
+    /// à chaque échéance, sans confirmation. `reminderEnabled` envoie alors une notification à l'heure.
+    var autoLog: Bool = false
+    /// Première échéance du planning automatique ; les suivantes sont à + n × intervalle.
+    var autoStart: Date?
 
     var interval: TimeInterval { TimeInterval(max(intervalValue, 1)) * intervalUnit.seconds }
+
+    /// k-ième échéance du planning automatique (calcul calendaire : l'heure reste fixe au changement d'heure).
+    func occurrence(_ k: Int) -> Date? {
+        guard let autoStart else { return nil }
+        return Calendar.current.date(byAdding: intervalUnit.calendarComponent,
+                                     value: k * max(intervalValue, 1), to: autoStart)
+    }
+
+    /// Prochaine échéance automatique après `now`.
+    func nextOccurrence(after now: Date) -> Date? {
+        guard autoLog else { return nil }
+        var k = 0
+        while k < AppData.maxAutoOccurrences, let date = occurrence(k) {
+            if date > now { return date }
+            k += 1
+        }
+        return nil
+    }
 
     var frequencyLabel: String {
         if intervalValue <= 1 { return "chaque \(intervalUnit.label(1))" }
@@ -58,6 +90,8 @@ struct EventType: Identifiable, Codable, Hashable {
         reminderEnabled = try c.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? true
         intervalValue = try c.decodeIfPresent(Int.self, forKey: .intervalValue) ?? 1
         intervalUnit = try c.decodeIfPresent(IntervalUnit.self, forKey: .intervalUnit) ?? .days
+        autoLog = try c.decodeIfPresent(Bool.self, forKey: .autoLog) ?? false
+        autoStart = try c.decodeIfPresent(Date.self, forKey: .autoStart)
     }
 }
 
@@ -69,6 +103,17 @@ struct LogEntry: Identifiable, Codable, Hashable {
     var typeName: String
     var emoji: String
     var date: Date
+
+    /// Identifiant stable d'une entrée automatique : le même type à la même échéance donne
+    /// toujours le même identifiant, donc pas de doublon (fusion avec la sauvegarde)
+    /// et une entrée automatique supprimée n'est pas recréée.
+    static func autoID(typeID: UUID, date: Date) -> UUID {
+        let digest = SHA256.hash(data: Data("\(typeID.uuidString)|\(Int(date.timeIntervalSince1970))".utf8))
+        var bytes = Array(digest.prefix(16))
+        bytes[6] = (bytes[6] & 0x0F) | 0x50 // version 5
+        bytes[8] = (bytes[8] & 0x3F) | 0x80 // variante RFC 4122
+        return bytes.withUnsafeBufferPointer { NSUUID(uuidBytes: $0.baseAddress!) as UUID }
+    }
 }
 
 struct AppData: Codable {
@@ -118,8 +163,31 @@ struct AppData: Codable {
     }
 
     func dueDate(for type: EventType) -> Date? {
-        guard type.reminderEnabled, let last = lastDate(for: type.id) else { return nil }
+        guard type.reminderEnabled, !type.autoLog, let last = lastDate(for: type.id) else { return nil }
         return last.addingTimeInterval(type.interval)
+    }
+
+    /// Garde-fou : nombre maximal d'échéances parcourues par type automatique.
+    static let maxAutoOccurrences = 5000
+
+    /// Ajoute au journal les échéances passées des types automatiques qui n'y sont pas encore.
+    /// Retourne `true` si des entrées ont été ajoutées.
+    mutating func applyAutoEntries(now: Date = Date()) -> Bool {
+        var known = Set(entries.map(\.id)).union(deletedEntryIDs)
+        var changed = false
+        for type in types where type.autoLog {
+            var k = 0
+            while k < Self.maxAutoOccurrences, let date = type.occurrence(k), date <= now {
+                let id = LogEntry.autoID(typeID: type.id, date: date)
+                if !known.contains(id) {
+                    entries.append(LogEntry(id: id, typeID: type.id, typeName: type.name, emoji: type.emoji, date: date))
+                    known.insert(id)
+                    changed = true
+                }
+                k += 1
+            }
+        }
+        return changed
     }
 
     func isOverdue(_ type: EventType, at now: Date = Date()) -> Bool {
@@ -170,6 +238,14 @@ enum Format {
         if s < 3600 { return "\(Int(s / 60)) min" }
         if s < 48 * 3600 { return "\(Int(s / 3600)) h" }
         return "\(Int(s / 86_400)) j"
+    }
+
+    /// Échéance courte : « mar. 20:00 » (ou « 14 nov. 20:00 » au-delà d'une semaine).
+    static func when(_ date: Date, now: Date = Date()) -> String {
+        if date.timeIntervalSince(now) < 6 * 86_400 {
+            return date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+        }
+        return date.formatted(.dateTime.day().month(.abbreviated).hour().minute())
     }
 
     static func ago(_ date: Date?, now: Date = Date()) -> String {

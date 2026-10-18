@@ -74,7 +74,8 @@ struct SettingsView: View {
     private func typeRow(_ type: EventType) -> some View {
         VStack(alignment: .leading) {
             Text("\(type.emoji) \(type.name)")
-            Text(type.reminderEnabled ? "Alerte si pas fait \(type.frequencyLabel)" : "Pas d'alerte")
+            Text(type.autoLog ? "Automatique \(type.frequencyLabel)"
+                 : type.reminderEnabled ? "Alerte si pas fait \(type.frequencyLabel)" : "Pas d'alerte")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -152,22 +153,42 @@ struct EventTypeEditor: View {
                     }
             }
             Section {
-                Toggle("Alerte si pas fait à temps", isOn: $draft.reminderEnabled)
-                if draft.reminderEnabled {
-                    Stepper(value: $draft.intervalValue, in: 1...365) {
-                        Text(draft.frequencyLabel.prefix(1).uppercased() + draft.frequencyLabel.dropFirst())
-                    }
-                    Picker("Unité", selection: $draft.intervalUnit) {
-                        ForEach(IntervalUnit.allCases) { unit in
-                            Text(unit.label(2).capitalized).tag(unit)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                Picker("Validation", selection: $draft.autoLog) {
+                    Text("Je confirme").tag(false)
+                    Text("Automatique").tag(true)
                 }
+                .pickerStyle(.segmented)
             } header: {
-                Text("Fréquence")
+                Text("Validation")
             } footer: {
-                Text("Une notification est envoyée à l'échéance (dernière fois + intervalle), puis relancée après 2 h, 6 h, 1, 2 et 3 jours. Astuce : pour une prise quotidienne à heure variable, choisissez par ex. 26 heures.")
+                Text(draft.autoLog
+                     ? "L'événement est ajouté au journal tout seul à chaque échéance, sans rien toucher (ex. sortir les poubelles). Si ça n'a pas été fait, supprimez l'entrée dans le journal."
+                     : "Vous enregistrez l'événement vous-même, avec confirmation.")
+            }
+
+            if draft.autoLog {
+                Section {
+                    DatePicker("Première échéance", selection: Binding(
+                        get: { draft.autoStart ?? Self.defaultAutoStart },
+                        set: { draft.autoStart = $0 }))
+                    frequencyControls
+                    Toggle("Notification à chaque échéance", isOn: $draft.reminderEnabled)
+                } header: {
+                    Text("Planning")
+                } footer: {
+                    Text("Échéances : la première, puis \(draft.frequencyLabel), à la même heure. Si la première est dans le passé, les échéances passées sont ajoutées au journal.")
+                }
+            } else {
+                Section {
+                    Toggle("Alerte si pas fait à temps", isOn: $draft.reminderEnabled)
+                    if draft.reminderEnabled {
+                        frequencyControls
+                    }
+                } header: {
+                    Text("Fréquence")
+                } footer: {
+                    Text("Une notification est envoyée à l'échéance (dernière fois + intervalle), puis relancée après 2 h, 6 h, 1, 2 et 3 jours. Astuce : pour une prise quotidienne à heure variable, choisissez par ex. 26 heures.")
+                }
             }
         }
         .navigationTitle(typeID == nil ? "Nouveau type" : "Modifier")
@@ -186,10 +207,31 @@ struct EventTypeEditor: View {
         }
     }
 
+    @ViewBuilder
+    private var frequencyControls: some View {
+        Stepper(value: $draft.intervalValue, in: 1...365) {
+            Text(draft.frequencyLabel.prefix(1).uppercased() + draft.frequencyLabel.dropFirst())
+        }
+        Picker("Unité", selection: $draft.intervalUnit) {
+            ForEach(IntervalUnit.allCases) { unit in
+                Text(unit.label(2).capitalized).tag(unit)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    /// Par défaut : la prochaine heure pleine.
+    private static var defaultAutoStart: Date {
+        let calendar = Calendar.current
+        let hour = calendar.dateInterval(of: .hour, for: Date())?.start ?? Date()
+        return calendar.date(byAdding: .hour, value: 1, to: hour) ?? Date()
+    }
+
     private func save() {
         var type = draft
         type.name = type.name.trimmingCharacters(in: .whitespaces)
         if type.emoji.isEmpty { type.emoji = "✅" }
+        if type.autoLog && type.autoStart == nil { type.autoStart = Self.defaultAutoStart }
         model.mutate { d in
             if let index = d.types.firstIndex(where: { $0.id == type.id }) {
                 d.types[index] = type

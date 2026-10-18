@@ -3,19 +3,25 @@ import UserNotifications
 
 @MainActor
 final class AppModel: ObservableObject {
-    @Published private(set) var data: AppData = Store.load()
+    @Published private(set) var data: AppData = Store.loadApplyingAutoEntries()
     @Published private(set) var notificationsAuthorized = true
     /// Heure de référence pour les « il y a … » et les retards, rafraîchie régulièrement :
     /// sans elle, SwiftUI garde l'affichage calculé lors du dernier enregistrement.
     @Published private(set) var now = Date()
 
     func reload() {
-        data = Store.load()
+        data = Store.loadApplyingAutoEntries()
         now = Date()
     }
 
+    /// Appelé régulièrement : met à jour l'heure affichée et valide les échéances automatiques arrivées.
     func tick() {
-        now = Date()
+        let before = data.entries.count
+        reload()
+        if data.entries.count != before {
+            rescheduleReminders()
+            Task { await backup() }
+        }
     }
 
     // État de la sauvegarde GitHub, pour l'écran Réglages.
@@ -25,7 +31,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var isSyncing = false
 
     func mutate(_ body: (inout AppData) -> Void) {
-        data = Store.update(body)
+        data = Store.update { d in
+            body(&d)
+            _ = d.applyAutoEntries()
+        }
         rescheduleReminders()
         Task { await backup() }
     }
@@ -42,6 +51,19 @@ final class AppModel: ObservableObject {
         mutate { d in
             d.entries.removeAll { ids.contains($0.id) }
             d.deletedEntryIDs.append(contentsOf: ids)
+        }
+    }
+
+    /// Modifie une entrée du journal (type, date et heure).
+    func updateEntry(id: UUID, typeID: UUID, date: Date) {
+        mutate { d in
+            guard let index = d.entries.firstIndex(where: { $0.id == id }) else { return }
+            d.entries[index].date = date
+            if let type = d.type(typeID) {
+                d.entries[index].typeID = type.id
+                d.entries[index].typeName = type.name
+                d.entries[index].emoji = type.emoji
+            }
         }
     }
 

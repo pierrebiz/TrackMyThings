@@ -5,6 +5,7 @@ struct LogView: View {
     @EnvironmentObject private var model: AppModel
     @State private var filter: UUID?
     @State private var showingAdd = false
+    @State private var editing: LogEntry?
 
     private var filtered: [LogEntry] {
         model.data.entries
@@ -39,14 +40,19 @@ struct LogView: View {
             ForEach(days, id: \.day) { group in
                 Section(group.day.formatted(.dateTime.weekday(.wide).day().month(.wide).year())) {
                     ForEach(group.items) { entry in
-                        HStack {
-                            Text(entry.emoji)
-                            Text(entry.typeName)
-                            Spacer()
-                            Text(entry.date.formatted(date: .omitted, time: .shortened))
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
+                        // Toucher une entrée pour changer son heure, sa date ou son type.
+                        Button { editing = entry } label: {
+                            HStack {
+                                Text(entry.emoji)
+                                Text(entry.typeName)
+                                Spacer()
+                                Text(entry.date.formatted(date: .omitted, time: .shortened))
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                     }
                     .onDelete { offsets in
                         model.deleteEntries(Set(offsets.map { group.items[$0].id }))
@@ -58,11 +64,14 @@ struct LogView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 ShareLink(item: model.csvFile()) { Image(systemName: "square.and.arrow.up") }
-                Button { showingAdd = true } label: { Image(systemName: "plus") }
+                Button { showingAdd = true } label: { Label("Entrée manuelle", systemImage: "plus") }
             }
         }
         .sheet(isPresented: $showingAdd) {
-            AddEntrySheet(initialType: filter ?? model.data.types.first?.id)
+            EntrySheet(initialType: filter ?? model.data.types.first?.id)
+        }
+        .sheet(item: $editing) { entry in
+            EntrySheet(entry: entry)
         }
     }
 }
@@ -87,52 +96,14 @@ private struct StatusRow: View {
             Text("Dernière fois : \(Format.ago(data.lastDate(for: type.id), now: now)) · \(count30) fois sur 30 jours")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            if type.reminderEnabled {
+            if type.autoLog {
+                Text("Automatique \(type.frequencyLabel)" + (type.nextOccurrence(after: now).map { " · prochain : \(Format.when($0))" } ?? ""))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else if type.reminderEnabled {
                 Text("Alerte si pas fait \(type.frequencyLabel)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
-/// Ajout manuel d'une entrée (oubli, date passée…).
-private struct AddEntrySheet: View {
-    @EnvironmentObject private var model: AppModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var typeID: UUID?
-    @State private var date = Date()
-
-    init(initialType: UUID?) {
-        _typeID = State(initialValue: initialType)
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Picker("Événement", selection: $typeID) {
-                    ForEach(model.data.types) { type in
-                        Text("\(type.emoji) \(type.name)").tag(UUID?.some(type.id))
-                    }
-                }
-                DatePicker("Date", selection: $date, in: ...Date())
-            }
-            .navigationTitle("Ajouter une entrée")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Annuler") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Ajouter") {
-                        guard let typeID else { return }
-                        Task {
-                            await model.log(typeID: typeID, at: date)
-                            dismiss()
-                        }
-                    }
-                    .disabled(typeID == nil)
-                }
             }
         }
     }

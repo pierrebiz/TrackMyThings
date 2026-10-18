@@ -17,15 +17,28 @@ Chaque bouton indique depuis combien de temps l'événement a été fait. Il pas
 ### L'app
 
 - **Écran principal** : un gros bouton par événement. Après un appui, une confirmation s'affiche. Une fois l'événement enregistré, l'app se ferme toute seule (réglable).
+- **✍️ Entrée manuelle** (écran principal et journal) : choisir un type d'événement et une date et heure passées, par exemple pour un oubli.
 - **Journal** :
   - tous les événements de tous les types, regroupés par jour, avec un filtre par type ;
   - l'état de chaque type (dernière fois, nombre de fois sur 30 jours, retard) ;
-  - ajout manuel d'une entrée oubliée (bouton +) et suppression par glissement ;
+  - toucher une entrée pour changer son heure, sa date ou son type, ou la supprimer ;
+  - suppression aussi par glissement ;
   - export CSV (bouton partager).
 - **Réglages** (⚙️) :
   - ajouter, modifier ou supprimer des types d'événements (nom, emoji, fréquence en heures, jours ou semaines) ;
   - changer leur ordre : bouton **Réordonner**, puis glisser les poignées ≡ ;
   - activer ou désactiver la confirmation et la fermeture automatique.
+
+### Événements automatiques
+
+Certains événements n'ont pas besoin de confirmation, par exemple 🗑️ Sortir les poubelles.
+Dans ⚙️ Réglages › le type › **Validation**, choisissez **Automatique**, puis réglez :
+
+- la **première échéance**, par exemple mardi 20:00 ;
+- la **fréquence**, par exemple 1 semaine.
+
+À chaque échéance, l'entrée est ajoutée au journal toute seule, à l'heure prévue. Si l'app est fermée, elle est ajoutée à la prochaine ouverture, avec la bonne date.
+Une notification peut signaler chaque échéance. Si ça n'a pas été fait, supprimez l'entrée dans le journal : elle ne sera pas recréée.
 
 ### Alertes
 

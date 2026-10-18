@@ -31,6 +31,13 @@ enum Store {
         try? decoder.decode(AppData.self, from: raw)
     }
 
+    /// Charge les données en ajoutant les échéances automatiques passées (enregistrées si besoin).
+    static func loadApplyingAutoEntries(now: Date = Date()) -> AppData {
+        var data = load()
+        if data.applyAutoEntries(now: now) { save(data) }
+        return data
+    }
+
     /// Lit, modifie et réécrit les données. Retourne la version sauvegardée.
     @discardableResult
     static func update(_ body: (inout AppData) -> Void) -> AppData {

@@ -30,7 +30,24 @@ enum ReminderScheduler {
         let now = Date()
         var requests: [(fire: Date, request: UNNotificationRequest)] = []
 
-        for type in data.types where type.reminderEnabled {
+        // Types automatiques : une notification à chacune des prochaines échéances (l'entrée est ajoutée toute seule).
+        for type in data.types where type.autoLog && type.reminderEnabled {
+            var date = type.nextOccurrence(after: now)
+            var index = 0
+            while let fire = date, index < 3 {
+                let content = UNMutableNotificationContent()
+                content.title = "\(type.emoji) \(type.name)"
+                content.body = "C'est l'heure. Enregistré automatiquement dans le journal."
+                content.sound = .default
+                content.threadIdentifier = type.id.uuidString
+                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(fire.timeIntervalSince(now), 1), repeats: false)
+                requests.append((fire, UNNotificationRequest(identifier: "\(type.id.uuidString)-auto-\(index)", content: content, trigger: trigger)))
+                date = type.nextOccurrence(after: fire)
+                index += 1
+            }
+        }
+
+        for type in data.types where type.reminderEnabled && !type.autoLog {
             guard let last = data.lastDate(for: type.id) else { continue }
             let due = last.addingTimeInterval(type.interval)
             for (index, offset) in followUps.enumerated() {

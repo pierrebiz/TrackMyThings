@@ -5,6 +5,7 @@ struct QuickLogView: View {
     @EnvironmentObject private var model: AppModel
     @State private var selected: EventType?
     @State private var justLogged: EventType?
+    @State private var showingManualEntry = false
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
@@ -23,6 +24,16 @@ struct QuickLogView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                Button { showingManualEntry = true } label: {
+                    VStack(spacing: 6) {
+                        Text("✍️").font(.system(size: 40))
+                        Text("Entrée manuelle").font(.headline)
+                        Text("date et heure au choix").font(.caption).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 130)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(Color.orange.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
                 NavigationLink(value: Route.log) {
                     VStack(spacing: 6) {
                         Text("📒").font(.system(size: 40))
@@ -63,6 +74,9 @@ struct QuickLogView: View {
         ) { type in
             Button("✓ \(type.emoji) \(type.name)") { record(type) }
             Button("Annuler", role: .cancel) {}
+        }
+        .sheet(isPresented: $showingManualEntry) {
+            EntrySheet(initialType: model.data.types.first?.id)
         }
         .overlay {
             if let type = justLogged {
@@ -107,9 +121,15 @@ private struct EventButtonLabel: View {
         VStack(spacing: 6) {
             Text(type.emoji).font(.system(size: 40))
             Text(type.name).font(.headline).lineLimit(1).minimumScaleFactor(0.7)
-            Text(Format.ago(data.lastDate(for: type.id), now: now))
-                .font(.caption)
-                .foregroundStyle(overdue ? .red : .secondary)
+            if type.autoLog {
+                Text(type.nextOccurrence(after: now).map { "🔁 \(Format.when($0, now: now))" } ?? "🔁 auto")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(Format.ago(data.lastDate(for: type.id), now: now))
+                    .font(.caption)
+                    .foregroundStyle(overdue ? .red : .secondary)
+            }
         }
         .frame(maxWidth: .infinity, minHeight: 130)
         .background(
